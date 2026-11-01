@@ -98,9 +98,10 @@ O enunciado pede de 3 a 5 conversas, sendo pelo menos uma não trivial.
 
 ## Etapa 5: Organização do repositório
 
-- [ ] **Deixar o README visível na página inicial do GitHub.** Hoje o projeto está dentro da subpasta `emporio-da-musica-agente/`, e quem abre o repositório não vê o README. Escolha uma opção:
-  - **(a) Mover o projeto para a raiz**, a melhor opção. Na pasta raiz do repositório:
+- [x] **Deixar o README visível na página inicial do GitHub.** Feito: foi criado um `README.md` na raiz (capa com resumo e link para a documentação completa). Se preferir, ainda dá para trocar pela opção (a):
+  - **(a) Mover o projeto para a raiz**, mais limpo. Na pasta raiz do repositório:
     ```bash
+    git rm README.md                               # remove a capa (o README completo assume o lugar)
     git rm emporio-da-musica-agente/.gitignore     # a raiz já tem um .gitignore completo
     git mv emporio-da-musica-agente/* emporio-da-musica-agente/.env.example .
     git commit -m "chore: move projeto para a raiz do repositório"
