@@ -71,7 +71,7 @@ Se a máquina não tem GPU (ou não dá para instalar o Ollama), o agente també
 | Provedor | Chave (grátis, sem cartão) | `.env` | Modelo padrão |
 |---|---|---|---|
 | Groq | <https://console.groq.com/keys> | `LLM_PROVIDER=groq` | `meta-llama/llama-4-scout-17b-16e-instruct` |
-| Gemini | <https://aistudio.google.com/apikey> | `LLM_PROVIDER=gemini` | `gemini-2.5-flash` |
+| Gemini | <https://aistudio.google.com/apikey> | `LLM_PROVIDER=gemini` | `gemini-3.5-flash` |
 
 Preencha `LLM_API_KEY` com a chave e deixe `LLM_MODEL` vazio para usar o modelo padrão do provedor. Os planos gratuitos limitam tokens por minuto: quando o limite estoura, o cliente espera o tempo indicado pela API e tenta de novo.
 

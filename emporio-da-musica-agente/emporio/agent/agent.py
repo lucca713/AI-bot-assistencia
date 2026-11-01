@@ -142,7 +142,11 @@ class StoreAgent:
                     assistant_msg = {
                         "role": "assistant",
                         "content": response.content,
-                        "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}}
+                        # "extra_content" guarda dados do provedor que precisam voltar
+                        # junto com a chamada (ex.: a "thought signature" do Gemini).
+                        "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]},
+                                        **({"extra_content": c["extra_content"]}
+                                           if c.get("extra_content") else {})}
                                        for c in response.tool_calls],
                     }
                     model_messages.append(assistant_msg)

@@ -16,6 +16,7 @@ muita diferença na percepção de velocidade de um modelo local.
 import json
 import logging
 import re
+import ssl
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from typing import Any
 
 import httpx
 import ollama
+import truststore
 
 from emporio.config import Settings
 
@@ -138,8 +140,22 @@ PROVIDER_BASE_URLS = {
     "groq": "https://api.groq.com/openai/v1",
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
 }
-# Planos gratuitos limitam tokens por minuto: esperamos um pouco e tentamos de novo.
+# Planos gratuitos limitam tokens por minuto (429) e às vezes ficam sobrecarregados
+# (500/503): esperamos um pouco e tentamos de novo.
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 3
 _MAX_RATE_LIMIT_WAIT_S = 30
+
+
+def _error_message(raw: bytes) -> str:
+    """Extrai a mensagem de erro do corpo da resposta (OpenAI e Gemini usam formatos parecidos)."""
+    text = raw.decode("utf-8", "replace")
+    try:
+        data = json.loads(text)
+        data = data[0] if isinstance(data, list) and data else data
+        return str(data["error"]["message"])[:400]
+    except (ValueError, KeyError, TypeError, IndexError):
+        return text[:400]
 
 
 def to_openai_messages(messages: list[dict]) -> list[dict]:
@@ -161,6 +177,8 @@ def to_openai_messages(messages: list[dict]) -> list[dict]:
                     "name": call["function"]["name"],
                     "arguments": json.dumps(call["function"].get("arguments") or {}, ensure_ascii=False),
                 },
+                # O Gemini exige receber de volta a "thought signature" de cada chamada.
+                **({"extra_content": call["extra_content"]} if call.get("extra_content") else {}),
             } for j, call in enumerate(msg["tool_calls"])]
             pending_ids = [c["id"] for c in calls]
             converted.append({"role": "assistant", "content": msg.get("content") or None, "tool_calls": calls})
@@ -181,7 +199,11 @@ class OpenAICompatibleLLM:
                           or PROVIDER_BASE_URLS.get(settings.llm_provider, "")).rstrip("/")
         if not self._base_url:
             raise LLMError(f"Defina LLM_BASE_URL para o provedor '{settings.llm_provider}'.")
+        # Certificados do sistema operacional (truststore) em vez do pacote certifi:
+        # antivírus e redes corporativas no Windows interceptam HTTPS com uma
+        # autoridade própria, que só existe no repositório do sistema.
         self._client = httpx.Client(timeout=settings.llm_timeout_s,
+                                    verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
                                     headers={"Authorization": f"Bearer {settings.llm_api_key}"})
 
     @property
@@ -217,19 +239,21 @@ class OpenAICompatibleLLM:
             if resp.status_code < 400:
                 yield from self._read_events(resp)
                 return
-            detail = resp.read().decode("utf-8", "replace")[:500]
-            if resp.status_code == 401:
-                raise LLMError("Chave da API inválida (LLM_API_KEY no .env).")
-            if resp.status_code != 429:
+            detail = _error_message(resp.read())
+            if resp.status_code in (401, 403):
+                raise LLMError(f"Chave da API recusada (LLM_API_KEY no .env): {detail}")
+            if resp.status_code not in _RETRYABLE_STATUS:
                 raise LLMError(f"Erro {resp.status_code} do provedor: {detail}")
-            if attempt >= 2:
-                raise LLMError("Limite gratuito do provedor atingido. Espere um minuto e tente de novo.")
+            if attempt >= _MAX_RETRIES:
+                if resp.status_code == 429:
+                    raise LLMError("Limite gratuito do provedor atingido. Espere um minuto e tente de novo.")
+                raise LLMError(f"O provedor está instável no momento ({resp.status_code}). Tente de novo.")
             try:
-                wait = float(resp.headers.get("retry-after") or 10)
+                wait = float(resp.headers.get("retry-after") or 5 * (attempt + 1))
             except ValueError:
-                wait = 10.0
+                wait = 5.0 * (attempt + 1)
         wait = min(wait, _MAX_RATE_LIMIT_WAIT_S)
-        logger.warning("Limite de uso do provedor atingido; tentando de novo em %.0fs.", wait)
+        logger.warning("Provedor indisponível ou no limite (%s); tentando de novo em %.0fs.", detail, wait)
         time.sleep(wait)
         yield from self._stream(body, attempt + 1)
 
@@ -255,10 +279,12 @@ class OpenAICompatibleLLM:
                     yield "token", delta["content"]
                 for call in delta.get("tool_calls") or []:
                     slot = partial_calls.setdefault(call.get("index", len(partial_calls)),
-                                                    {"name": "", "arguments": ""})
+                                                    {"name": "", "arguments": "", "extra_content": None})
                     fn = call.get("function") or {}
                     slot["name"] += fn.get("name") or ""
                     slot["arguments"] += fn.get("arguments") or ""
+                    if call.get("extra_content"):
+                        slot["extra_content"] = call["extra_content"]
                 if choice.get("finish_reason"):
                     response.done_reason = choice["finish_reason"]
 
@@ -269,7 +295,8 @@ class OpenAICompatibleLLM:
                 arguments = json.loads(call["arguments"] or "{}")
             except json.JSONDecodeError:
                 arguments = call["arguments"]
-            response.tool_calls.append({"name": call["name"], "arguments": arguments})
+            response.tool_calls.append({"name": call["name"], "arguments": arguments,
+                                        "extra_content": call["extra_content"]})
         response.content = strip_think_tags(response.content)
         yield "done", response
 
