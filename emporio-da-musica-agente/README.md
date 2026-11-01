@@ -382,6 +382,7 @@ O enunciado pede para assumir interpretações razoáveis e documentá-las:
 
 - **Qualidade depende do modelo local.** Modelos pequenos (4B) às vezes escolhem a ferramenta errada ou parafraseiam valores. Os de 14B+ são bem mais confiáveis.
 - **Latência:** em CPU, uma resposta pode levar dezenas de segundos. O streaming ameniza, mas não resolve.
+- **Planos gratuitos na nuvem têm cota baixa.** No Gemini grátis, testei cerca de 15 a 20 requisições por minuto/dia por modelo, e cada mensagem do cliente usa de 1 a 4 chamadas ao modelo. Serve para demonstração, não para atendimento real. Os modelos "latest" do Gemini também ficaram sobrecarregados (erro 503) durante os testes; o cliente tenta de novo sozinho, mas a resposta demora.
 - **Frete para outras cidades** é calculado por CEP/peso no sistema real, que não temos. O agente explica a regra e as modalidades, mas não dá o valor.
 - **Feriados municipais/estaduais** são uma lista fixa no código, e não há horário especial (Black Friday, Natal).
 - **Concorrência:** duas mensagens simultâneas na mesma conversa podem se intercalar no histórico. A interface bloqueia o envio enquanto espera, mas a API não.
@@ -400,7 +401,7 @@ O enunciado pede para assumir interpretações razoáveis e documentá-las:
 
 ## Exemplos de interação
 
-A pasta [`exemplos/`](exemplos/) contém conversas **geradas pelo agente real** com `python -m scripts.gerar_exemplos`. Os arquivos mostram exatamente o que o agente respondeu, com as ferramentas chamadas e seus resultados:
+A pasta [`exemplos/`](exemplos/) contém conversas **geradas pelo agente real** com `python -m scripts.gerar_exemplos` (modelo `gemini-flash-lite-latest`, plano gratuito, porque a máquina de entrega não tinha o Ollama instalado). Os arquivos mostram exatamente o que o agente respondeu, com as ferramentas chamadas e seus resultados:
 
 | # | Cenário | O que demonstra |
 |---|---|---|
