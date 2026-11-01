@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Empório da Música · Atendimento</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2C8 2 3 6 3 12c0 7 6 14 13 18 7-4 13-11 13-18 0-6-5-10-13-10z' fill='%23b4532a'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- ===================== Chat ===================== -->
+    <main class="chat">
+      <header class="chat-header">
+        <div class="brand">
+          <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 2C8 2 3 6 3 12c0 7 6 14 13 18 7-4 13-11 13-18 0-6-5-10-13-10z" />
+            <path class="note" d="M18.5 8v9.2a3 3 0 1 1-1.6-2.6V10.4l-4 1v7.8a3 3 0 1 1-1.6-2.6V10l7.2-2z" />
+          </svg>
+          <div>
+            <h1>Empório da Música</h1>
+            <p class="tagline">Sua música começa aqui.</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span id="store-status" class="status-pill" title="">…</span>
+          <button id="new-chat" class="btn-ghost" type="button" title="Começar uma nova conversa">Nova conversa</button>
+          <button id="toggle-panel" class="btn-ghost panel-toggle" type="button" aria-controls="panel">Bastidores</button>
+        </div>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite">
+        <div id="empty-state" class="empty-state">
+          <div class="avatar-lg">🎸</div>
+          <h2>Oi! Eu sou o Tom, assistente virtual da Empório.</h2>
+          <p>Posso te ajudar com instrumentos, preços, pedidos, trocas, pagamento e entrega.</p>
+          <div class="suggestions">
+            <button type="button" class="chip">Quais opções de violões disponíveis custando até R$1000?</button>
+            <button type="button" class="chip">Quanto custa o Takamine GD20?</button>
+            <button type="button" class="chip">Qual o endereço da loja?</button>
+            <button type="button" class="chip">Me arrependi da minha compra, posso devolver meu pedido?</button>
+            <button type="button" class="chip">O que está em promoção?</button>
+            <button type="button" class="chip">Vocês vendem cordas e amplificador?</button>
+          </div>
+        </div>
+      </section>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <textarea id="input" rows="1" maxlength="2000" placeholder="Escreva sua mensagem…" aria-label="Mensagem"></textarea>
+        <button id="send" type="submit" class="btn-send" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+        </button>
+      </form>
+    </main>
+
+    <!-- ===================== Painel da equipe ===================== -->
+    <aside id="panel" class="panel" aria-label="Bastidores do agente">
+      <div class="panel-tabs" role="tablist">
+        <button type="button" role="tab" class="tab active" data-tab="trace" aria-selected="true">Ferramentas</button>
+        <button type="button" role="tab" class="tab" data-tab="tickets" aria-selected="false">Chamados</button>
+        <button type="button" class="btn-ghost panel-close" id="close-panel" aria-label="Fechar painel">✕</button>
+      </div>
+
+      <div id="tab-trace" class="tab-body">
+        <p class="panel-hint">O que o agente consultou para responder: ferramenta, argumentos e o que o sistema devolveu.</p>
+        <div id="trace-list" class="trace-list">
+          <p class="muted">Nenhuma consulta ainda.</p>
+        </div>
+      </div>
+
+      <div id="tab-tickets" class="tab-body" hidden>
+        <div class="panel-row">
+          <p class="panel-hint">Chamados abertos pelo agente para a equipe humana.</p>
+          <button id="refresh-tickets" type="button" class="btn-ghost small">Atualizar</button>
+        </div>
+        <div id="ticket-list" class="ticket-list"><p class="muted">Carregando…</p></div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

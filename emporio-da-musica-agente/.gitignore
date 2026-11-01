@@ -1,0 +1,15 @@
+# Ambiente e segredos
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
