@@ -25,7 +25,7 @@ Lá estão: como rodar (passo a passo, incluindo a conexão com o banco), arquit
 cd emporio-da-musica-agente
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
-ollama pull qwen3:14b
+ollama pull qwen3:14b                               # ou, sem GPU: LLM_PROVIDER=gemini + LLM_API_KEY no .env
 cp .env.example .env                                # preencha os dados do PostgreSQL
 python -m scripts.setup_db                          # cria as tabelas e carrega os dados
 uvicorn emporio.api.main:app                        # abra http://localhost:8000

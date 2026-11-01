@@ -263,6 +263,20 @@ As camadas vão de dentro para fora, e cada uma só conhece a de dentro:
 
 ## Decisões técnicas
 
+O enunciado deixa cinco escolhas em aberto. Resumo aqui o que escolhi e por quê; os detalhes vêm nas seções seguintes.
+
+| Escolha | O que eu fiz | Por quê, em uma frase |
+|---|---|---|
+| Abordagem do agente | Function calling (estilo ReAct) com 7 ferramentas e um loop próprio, sem framework | O modelo decide *o que* consultar, mas quem acessa o banco e faz as contas é código revisado. |
+| Modelo e provedor | Ollama local por padrão; Groq ou Gemini gratuitos como alternativa, trocando só o `.env` | Começar grátis e privado, sem prender o projeto a um fornecedor. |
+| Interface | Web com streaming (FastAPI + HTML/JS), CLI e API REST | A web é a melhor forma de mostrar o agente funcionando; a API deixa pronto para plugar no WhatsApp. |
+| Histórico de conversa | Sim, no PostgreSQL | Atendimento é conversa: o cliente passa o número do pedido numa mensagem e pede o chamado na outra. |
+| Tratamento dos dados | ETL dos CSVs para um schema tipado, com relatório de qualidade, e o manual em Markdown curado | Os dados tinham problemas reais (descrições trocadas, promoções duplicadas, status conflitante) que o agente não pode repetir para o cliente. |
+
+**Como pensei.** A loja quer tirar da equipe as perguntas repetidas sem arriscar dar uma informação errada, e o próprio manual diz que preço, estoque e prazo só podem ser informados consultando o sistema. Por isso a ideia central do projeto é dividir o trabalho: o modelo de linguagem entende a pergunta, escolhe a ferramenta e escreve a resposta no tom da loja, e o código Python faz tudo que precisa estar exato (preço com desconto, PIX, parcelas, dias desde a entrega, loja aberta ou fechada). Quando a decisão não cabe ao agente, como aprovar uma devolução, ele explica a regra, confere o prazo e abre um chamado para uma pessoa da equipe.
+
+Também tentei manter o projeto simples de rodar e de auditar. Preferi um loop de cerca de 100 linhas a um framework, um índice de seções a uma base vetorial (o manual é curto) e uma tela que mostra cada ferramenta usada. Assim quem avalia, ou a equipe da loja, consegue ver por que o agente respondeu o que respondeu.
+
 ### 1. Abordagem do agente: function calling com loop próprio
 
 O modelo recebe o catálogo de ferramentas e decide, a cada mensagem, se precisa consultar **dados** (produto, pedido, promoção) ou **políticas** (manual), no estilo ReAct: pensa, chama a ferramenta, lê o resultado e responde.
@@ -272,6 +286,8 @@ O modelo recebe o catálogo de ferramentas e decide, a cada mensagem, se precisa
 - **"O LLM decide, o código calcula."** Preço com desconto, parcelas, dias desde a entrega e loja aberta são calculados em Python (`emporio/domain/`) e entregues prontos ao modelo. LLMs erram contas de forma silenciosa, e o manual diz: *"nunca fornecer informações sobre preços, estoque ou prazos sem consultar o sistema"*.
 
 ### 2. Modelo e provedor: Ollama (local)
+
+> **Na prática, para a entrega:** a máquina onde terminei o projeto não tinha o Ollama instalado, então testei o agente e gerei os exemplos com o **Gemini gratuito** (`gemini-flash-lite-latest`). Como a troca de provedor é só uma linha no `.env`, aproveitei para deixar essa opção pronta para quem quiser rodar sem GPU.
 
 - **Gratuito e privado.** Roda na máquina, sem custo por mensagem e sem enviar dados de clientes a terceiros, o que combina com o capítulo de LGPD do manual.
 - **Família Qwen3** como padrão: tem suporte nativo a ferramentas no Ollama, bom desempenho em português e tamanhos para vários hardwares (tabela em [Qual modelo usar](#qual-modelo-usar)).
@@ -415,15 +431,16 @@ A pasta [`exemplos/`](exemplos/) contém conversas **geradas pelo agente real** 
 
 ## Uso de assistentes de código
 
-> ✏️ **Revise e complete esta seção com o seu próprio workflow antes de entregar.**
-
 Usei o **Claude Code** (agente de código da Anthropic, no terminal) como par de programação durante todo o projeto. O workflow foi:
 
 1. **Entendimento do problema:** pedi ao assistente que lesse o enunciado, o manual em PDF e os CSVs. Ele levantou as inconsistências dos dados e do manual listadas acima antes de qualquer código.
 2. **Decisões:** discutimos as alternativas e eu tomei as decisões de produto. Por exemplo, a escolha do **Ollama** como provedor (gratuito e local), considerando o hardware disponível para teste.
 3. **Implementação incremental:** o código foi gerado por camadas (domínio → banco → ETL → ferramentas → agente → API → front), validando cada uma antes da próxima: o schema e as consultas SQL foram testados direto no PostgreSQL e as regras de negócio contra os dados reais.
 4. **Verificação de APIs:** em vez de confiar na memória do modelo, o assistente consultou o código-fonte da biblioteca `ollama-python`. Foi assim que encontramos que ela descarta campos de JSON Schema como `anyOf`, o que motivou o conversor `to_ollama_parameters`.
-5. **Revisão e testes:** as regras de negócio, o ETL e a conversão de ferramentas têm testes automatizados (`pytest`), que rodam sem LLM. O agente completo foi testado com o Ollama em _[descreva a máquina, ex.: GPU XX GB]_ usando o modelo _[modelo usado]_, e as conversas de `exemplos/` foram geradas com `scripts/gerar_exemplos.py`. _[Descreva aqui o que você ajustou depois de testar: prompt, ferramentas, modelo etc.]_
+5. **Revisão e testes:** as regras de negócio, o ETL e a conversão de ferramentas têm testes automatizados (`pytest`), que rodam sem LLM. O agente completo foi testado num PC com Windows e uma RTX 5060 Ti de 8 GB, usando o Gemini gratuito, porque o Ollama não estava instalado nessa máquina. Rodei as perguntas de referência (preço do Takamine, violões até R$ 1.000, endereço, devolução do pedido 7, rastreio do pedido 8, e-mail errado, produto esgotado, acessórios, fora do escopo) e conferi os valores com a saída das ferramentas. As conversas de `exemplos/` foram geradas com `scripts/gerar_exemplos.py` e revisadas uma a uma.
+6. **Ajustes depois de testar com o modelo real:** pedi ao assistente um cliente para APIs compatíveis com OpenAI (Groq e Gemini) sem mexer no resto do sistema. Os testes mostraram três problemas, e corrigimos cada um na causa: o Gemini exige receber de volta a "thought signature" de cada chamada de ferramenta; o Python não confiava no certificado HTTPS da minha máquina (passei a usar os certificados do Windows); e o agente dizia "não temos o Giannini GF-3D" quando o produto existia, mas estava esgotado, porque a busca padrão só traz itens disponíveis. Agora a busca avisa quando o modelo pedido existe e não está à venda.
+
+Em resumo: o assistente escreveu a maior parte do código e fez as verificações, e eu defini o que construir, tomei as decisões de produto (provedor, o que o agente pode ou não fazer sozinho), testei o agente e conferi as respostas antes de aceitar.
 
 ---
 
