@@ -1,0 +1,27 @@
+# =============================================================================
+# .gitignore da raiz do repositório
+# =============================================================================
+
+# --- Credenciais e configuração local (NUNCA versionar) ----------------------
+.env
+*.env.local
+DB HOST localhost DB PORT.txt
+
+# --- Material original do desafio --------------------------------------------
+# Os dados usados pelo projeto já estão copiados em
+# emporio-da-musica-agente/data/raw/. O enunciado da empresa não deve ficar público.
+Desafio_Técnico_AI_Engineer_2026-*/
+
+# --- Python ---------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# --- Editores / sistema operacional ------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

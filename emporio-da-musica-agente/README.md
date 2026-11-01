@@ -64,25 +64,108 @@ O modelo precisa ter **suporte a ferramentas (tools)**. A recomendação depende
 
 Para trocar, basta mudar `LLM_MODEL` no `.env` (e rodar `ollama pull <modelo>`).
 
-### 3. Configuração
+### 3. Banco de dados (PostgreSQL)
+
+> **Não é preciso importar os CSVs manualmente.** O script do passo 3.4 lê os arquivos de `data/raw/`, trata os dados e cria tudo. Você só precisa de um PostgreSQL rodando e de um banco vazio.
+
+#### 3.1 Instalar e iniciar o PostgreSQL
+
+Escolha **uma** das opções:
+
+<details open>
+<summary><b>Linux (Ubuntu/Debian)</b></summary>
+
+```bash
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+
+# Define a senha do usuário "postgres" (use a mesma no .env)
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'sua_senha_aqui';"
+```
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. Baixe o instalador em <https://www.postgresql.org/download/windows/> e instale. O instalador pede a **senha do usuário `postgres`**: anote, ela vai no `.env`.
+2. Mantenha a porta padrão **5432**.
+3. O serviço inicia sozinho com o Windows. O `psql` fica em `C:\Program Files\PostgreSQL\<versão>\bin\`; use o **SQL Shell (psql)** do menu Iniciar ou adicione essa pasta ao PATH.
+</details>
+
+<details>
+<summary><b>Docker (qualquer sistema)</b></summary>
+
+```bash
+docker run --name emporio-postgres -d -p 5432:5432 \
+  -e POSTGRES_PASSWORD=sua_senha_aqui \
+  -e POSTGRES_DB=loja_musica \
+  postgres:16
+```
+
+Esse comando já cria o banco `loja_musica`, então pule o passo 3.2.
+</details>
+
+#### 3.2 Criar o banco vazio
+
+```bash
+psql -h localhost -U postgres -c "CREATE DATABASE loja_musica;"
+```
+
+#### 3.3 Configurar a conexão (`.env`)
 
 ```bash
 cp .env.example .env               # Windows: copy .env.example .env
 ```
 
-Edite o `.env` com os dados do seu PostgreSQL. O banco (`DB_DATABASE`) precisa existir; o schema e as tabelas são criados pelo passo seguinte.
+Abra o `.env` e preencha com os dados do seu PostgreSQL:
 
-### 4. Banco de dados
+| Variável | Exemplo | O que é |
+|---|---|---|
+| `DB_HOST` | `localhost` | endereço do servidor (`localhost` se o banco roda na mesma máquina) |
+| `DB_PORT` | `5432` | porta (5432 é o padrão) |
+| `DB_USERNAME` | `postgres` | usuário do banco |
+| `DB_PASSWORD` | `sua_senha_aqui` | senha desse usuário |
+| `DB_DATABASE` | `loja_musica` | nome do banco criado no passo 3.2 |
+| `DB_SCHEMA` | `emporio` | schema onde o projeto cria suas tabelas (não precisa mudar) |
+
+> 🔒 O `.env` está no `.gitignore` e **nunca** deve ir para o GitHub. Só o `.env.example`, sem senha real, é versionado.
+
+Para testar a conexão antes de seguir:
+
+```bash
+psql -h localhost -p 5432 -U postgres -d loja_musica -c "SELECT version();"
+```
+
+#### 3.4 Criar as tabelas e carregar os dados
 
 ```bash
 python -m scripts.setup_db
 ```
 
-O script lê os CSVs e o manual, imprime um **relatório de qualidade dos dados**, cria o schema `emporio` (tipado, com chaves e restrições) e carrega tudo em uma única transação. Pode rodar quantas vezes quiser. `--reset` apaga e recria do zero, inclusive conversas.
+O script:
+1. lê os CSVs e o manual de políticas;
+2. imprime um **relatório de qualidade dos dados**;
+3. cria a extensão `pg_trgm` (busca tolerante a erros de digitação), o schema `emporio` e as tabelas (tipadas, com chaves e restrições);
+4. carrega tudo em **uma única transação** (se algo falhar, nada fica pela metade);
+5. mostra quantas linhas foram carregadas em cada tabela.
 
-> As tabelas que já existirem no schema `public` (por exemplo, uma importação manual dos CSVs) não são alteradas.
+Pode rodar quantas vezes quiser: catálogo, pedidos e políticas são recarregados, e conversas e chamados são preservados. Para apagar tudo e recriar do zero (inclusive conversas), use `python -m scripts.setup_db --reset`.
 
-### 5. Usar o agente
+> As tabelas que já existirem no schema `public` (por exemplo, de uma importação manual dos CSVs) não são alteradas.
+
+#### Problemas comuns de conexão
+
+| Erro | Causa provável | Solução |
+|---|---|---|
+| `connection refused` / `Connection timed out` | PostgreSQL não está rodando ou está em outra porta | Linux: `sudo systemctl start postgresql`. Windows: em "Serviços", inicie `postgresql-x64-<versão>`. Confira `DB_PORT`. |
+| `password authentication failed for user "postgres"` | senha errada no `.env` | Corrija `DB_PASSWORD` ou redefina a senha (comando do passo 3.1). |
+| `database "loja_musica" does not exist` | o banco não foi criado | Rode o passo 3.2. |
+| `permission denied to create extension "pg_trgm"` | o usuário do `.env` não é superusuário | Rode uma vez como superusuário: `psql -U postgres -d loja_musica -c "CREATE EXTENSION pg_trgm;"` |
+| `extension "pg_trgm" is not available` | pacote de extensões não instalado | Linux: `sudo apt install postgresql-contrib`. No Windows e no Docker ela já vem instalada. |
+
+Com a API rodando (passo 4), `http://localhost:8000/api/health` mostra se o banco e o Ollama estão acessíveis.
+
+### 4. Usar o agente
 
 **Interface web** (recomendado):
 
@@ -107,7 +190,7 @@ curl -X POST localhost:8000/api/chat -H "Content-Type: application/json" \
 
 > 💡 **Relógio simulado.** Os pedidos da base são de out/2025 a mar/2026. Para testar prazos de devolução e "loja aberta/fechada" de forma realista, defina `SIMULATED_NOW=2026-02-20T10:30` no `.env` (ou use `--agora` na CLI).
 
-### 6. Testes e exemplos
+### 5. Testes e exemplos
 
 ```bash
 pytest                              # testes das regras de negócio, ETL e ferramentas (não usam LLM)
