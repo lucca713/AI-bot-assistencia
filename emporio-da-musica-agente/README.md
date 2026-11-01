@@ -2,7 +2,7 @@
 
 Protótipo de um agente de mensagens de texto que atende os clientes da **Empório da Música**, loja (fictícia) de instrumentos musicais em Campo Grande/MS. O agente responde dúvidas recorrentes (produtos, preços, disponibilidade, pedidos, trocas, pagamento, frete, horários) consultando **dados reais da operação** (PostgreSQL) e o **manual de políticas da loja**, com a persona e o tom de voz definidos no próprio manual.
 
-- **LLM local via Ollama** (gratuito, sem chave de API)
+- **Modelo de linguagem gratuito e trocável no `.env`:** Gemini (API grátis, padrão) ou Ollama (local, sem chave)
 - **Function calling** com 7 ferramentas que acessam o banco por SQL fixo e revisado
 - **Regras de negócio determinísticas em Python** (preço, PIX, parcelamento, prazos, horário)
 - **Interface web** com respostas em streaming e um painel "Bastidores" que mostra o que o agente consultou
@@ -32,7 +32,7 @@ Protótipo de um agente de mensagens de texto que atende os clientes da **Empór
 |---|---|---|
 | Python | 3.10+ | aplicação |
 | PostgreSQL | 13+ | dados da loja, histórico e chamados |
-| [Ollama](https://ollama.com/download) | recente | roda o modelo de linguagem localmente |
+| Chave do Gemini **ou** [Ollama](https://ollama.com/download) | — | modelo de linguagem (ver passo 2) |
 
 ### 1. Ambiente Python
 
@@ -42,9 +42,20 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 ```
 
-### 2. Modelo de linguagem (Ollama)
+### 2. Modelo de linguagem
 
-Instale o Ollama, baixe o modelo e deixe o serviço rodando:
+Há duas opções. A **A** é a mais simples e é a que vem configurada no `.env.example`.
+
+#### Opção A (padrão): Gemini, API gratuita
+
+1. Entre em <https://aistudio.google.com/apikey> com uma conta Google e crie uma chave (*Create API key*). Não pede cartão.
+2. No `.env` (passo 3.3), cole a chave em `LLM_API_KEY`. `LLM_PROVIDER=gemini` já vem preenchido e `LLM_MODEL` vazio usa o modelo padrão, `gemini-flash-lite-latest`.
+
+É com essa opção que os exemplos foram gerados. O plano gratuito tem limite de requisições por minuto; quando estoura, o agente espera e tenta de novo sozinho, então uma resposta pode demorar alguns segundos a mais.
+
+#### Opção B: Ollama, modelo local (sem chave, dados não saem da máquina)
+
+No `.env`, use `LLM_PROVIDER=ollama` e `LLM_MODEL=qwen3:14b`. Instale o Ollama, baixe o modelo e deixe o serviço rodando:
 
 ```bash
 ollama pull qwen3:14b
@@ -58,24 +69,25 @@ O modelo precisa ter **suporte a ferramentas (tools)**. A recomendação depende
 | Hardware | Modelo sugerido (`LLM_MODEL`) | Observação |
 |---|---|---|
 | GPU com 8 GB | `qwen3:8b` | bom equilíbrio |
-| GPU com 12–16 GB | `qwen3:14b` (**padrão**) | melhor escolha de ferramentas e português |
+| GPU com 12–16 GB | `qwen3:14b` (**recomendado**) | melhor escolha de ferramentas e português |
 | GPU com 24 GB+ | `qwen3:32b` | mais preciso, mais lento |
 | Só CPU / pouca RAM | `qwen3:4b` | funciona, mas lento e erra mais |
 
 Para trocar, basta mudar `LLM_MODEL` no `.env` (e rodar `ollama pull <modelo>`).
 
-#### Alternativa sem GPU: API gratuita (Groq ou Gemini)
+#### Outros provedores na nuvem
 
-Se a máquina não tem GPU (ou não dá para instalar o Ollama), o agente também fala com APIs na nuvem compatíveis com a API da OpenAI e com plano gratuito. Nada mais no sistema muda: ferramentas, regras e banco são os mesmos.
+O cliente fala com qualquer API compatível com a da OpenAI. Nada mais no sistema muda: ferramentas, regras e banco são os mesmos.
 
 | Provedor | Chave (grátis, sem cartão) | `.env` | Modelo padrão |
 |---|---|---|---|
+| Gemini | <https://aistudio.google.com/apikey> | `LLM_PROVIDER=gemini` | `gemini-flash-lite-latest` |
 | Groq | <https://console.groq.com/keys> | `LLM_PROVIDER=groq` | `meta-llama/llama-4-scout-17b-16e-instruct` |
-| Gemini | <https://aistudio.google.com/apikey> | `LLM_PROVIDER=gemini` | `gemini-3.5-flash` |
+| Outro | — | `LLM_PROVIDER=openai` + `LLM_BASE_URL` | defina `LLM_MODEL` |
 
-Preencha `LLM_API_KEY` com a chave e deixe `LLM_MODEL` vazio para usar o modelo padrão do provedor. Os planos gratuitos limitam tokens por minuto: quando o limite estoura, o cliente espera o tempo indicado pela API e tenta de novo.
+Preencha `LLM_API_KEY` com a chave e deixe `LLM_MODEL` vazio para usar o modelo padrão do provedor.
 
-> ⚠️ Com um provedor na nuvem, as mensagens dos clientes saem da máquina. Para produção, o caminho recomendado continua sendo o modelo local (ver [Decisões técnicas](#2-modelo-e-provedor-ollama-local)).
+> ⚠️ Com um provedor na nuvem, as mensagens dos clientes saem da máquina. Para produção, o caminho recomendado continua sendo o modelo local (ver [Decisões técnicas](#2-modelo-e-provedor-gemini-gratuito-ou-ollama-local)).
 
 ### 3. Banco de dados (PostgreSQL)
 
@@ -130,10 +142,12 @@ psql -h localhost -U postgres -c "CREATE DATABASE loja_musica;"
 cp .env.example .env               # Windows: copy .env.example .env
 ```
 
-Abra o `.env` e preencha com os dados do seu PostgreSQL:
+Abra o `.env` e preencha a chave do modelo e os dados do seu PostgreSQL:
 
 | Variável | Exemplo | O que é |
 |---|---|---|
+| `LLM_PROVIDER` | `gemini` | provedor do modelo (já vem preenchido; ver passo 2) |
+| `LLM_API_KEY` | `AIza...` | sua chave grátis do Gemini (passo 2, opção A) |
 | `DB_HOST` | `localhost` | endereço do servidor (`localhost` se o banco roda na mesma máquina) |
 | `DB_PORT` | `5432` | porta (5432 é o padrão) |
 | `DB_USERNAME` | `postgres` | usuário do banco |
@@ -162,6 +176,16 @@ O script:
 4. carrega tudo em **uma única transação** (se algo falhar, nada fica pela metade);
 5. mostra quantas linhas foram carregadas em cada tabela.
 
+As tabelas criadas (definidas em `emporio/db/schema.sql`, no schema `emporio`):
+
+| Grupo | Tabelas | Origem |
+|---|---|---|
+| Dados da loja | `categories`, `products`, `promotions`, `customers`, `orders`, `order_items` (+ view `v_active_promotion`) | CSVs de `data/raw/`, já tratados |
+| Base de conhecimento | `policy_sections` | manual de políticas (`data/politicas_da_loja.md`), uma linha por seção |
+| Criadas pelo agente | `conversations`, `chat_messages`, `tool_calls`, `tickets` | começam vazias e são preenchidas durante o uso (histórico, auditoria das ferramentas e chamados) |
+
+Ninguém precisa enviar ou importar tabelas: o repositório tem os CSVs e o schema, e este comando monta tudo do zero em qualquer PostgreSQL.
+
 Pode rodar quantas vezes quiser: catálogo, pedidos e políticas são recarregados, e conversas e chamados são preservados. Para apagar tudo e recriar do zero (inclusive conversas), use `python -m scripts.setup_db --reset`.
 
 > As tabelas que já existirem no schema `public` (por exemplo, de uma importação manual dos CSVs) não são alteradas.
@@ -176,7 +200,7 @@ Pode rodar quantas vezes quiser: catálogo, pedidos e políticas são recarregad
 | `permission denied to create extension "pg_trgm"` | o usuário do `.env` não é superusuário | Rode uma vez como superusuário: `psql -U postgres -d loja_musica -c "CREATE EXTENSION pg_trgm;"` |
 | `extension "pg_trgm" is not available` | pacote de extensões não instalado | Linux: `sudo apt install postgresql-contrib`. No Windows e no Docker ela já vem instalada. |
 
-Com a API rodando (passo 4), `http://localhost:8000/api/health` mostra se o banco e o Ollama estão acessíveis.
+Com a API rodando (passo 4), `http://localhost:8000/api/health` mostra se o banco e o modelo de linguagem estão acessíveis.
 
 ### 4. Usar o agente
 
@@ -268,7 +292,7 @@ O enunciado deixa cinco escolhas em aberto. Resumo aqui o que escolhi e por quê
 | Escolha | O que eu fiz | Por quê, em uma frase |
 |---|---|---|
 | Abordagem do agente | Function calling (estilo ReAct) com 7 ferramentas e um loop próprio, sem framework | O modelo decide *o que* consultar, mas quem acessa o banco e faz as contas é código revisado. |
-| Modelo e provedor | Ollama local por padrão; Groq ou Gemini gratuitos como alternativa, trocando só o `.env` | Começar grátis e privado, sem prender o projeto a um fornecedor. |
+| Modelo e provedor | Gemini gratuito por padrão; Ollama (local) ou Groq como alternativa, trocando só o `.env` | Custo zero, roda em qualquer máquina e não prende o projeto a um fornecedor. |
 | Interface | Web com streaming (FastAPI + HTML/JS), CLI e API REST | A web é a melhor forma de mostrar o agente funcionando; a API deixa pronto para plugar no WhatsApp. |
 | Histórico de conversa | Sim, no PostgreSQL | Atendimento é conversa: o cliente passa o número do pedido numa mensagem e pede o chamado na outra. |
 | Tratamento dos dados | ETL dos CSVs para um schema tipado, com relatório de qualidade, e o manual em Markdown curado | Os dados tinham problemas reais (descrições trocadas, promoções duplicadas, status conflitante) que o agente não pode repetir para o cliente. |
@@ -285,9 +309,9 @@ O modelo recebe o catálogo de ferramentas e decide, a cada mensagem, se precisa
 - **Por que não LangChain/LlamaIndex?** O fluxo é pequeno (cerca de 100 linhas em `agent.py`). Um loop explícito deixa cada passo visível e auditável: a tela mostra as ferramentas chamadas e o banco registra todas em `tool_calls`. Um framework adicionaria abstração sem ganho real aqui.
 - **"O LLM decide, o código calcula."** Preço com desconto, parcelas, dias desde a entrega e loja aberta são calculados em Python (`emporio/domain/`) e entregues prontos ao modelo. LLMs erram contas de forma silenciosa, e o manual diz: *"nunca fornecer informações sobre preços, estoque ou prazos sem consultar o sistema"*.
 
-### 2. Modelo e provedor: Ollama (local)
+### 2. Modelo e provedor: Gemini gratuito ou Ollama (local)
 
-> **Na prática, para a entrega:** a máquina onde terminei o projeto não tinha o Ollama instalado, então testei o agente e gerei os exemplos com o **Gemini gratuito** (`gemini-flash-lite-latest`). Como a troca de provedor é só uma linha no `.env`, aproveitei para deixar essa opção pronta para quem quiser rodar sem GPU.
+Comecei o projeto pensando no **Ollama**, por ser gratuito e manter os dados dos clientes na máquina. Na máquina onde terminei, porém, o Ollama não estava instalado, então passei a testar com o **Gemini gratuito** (`gemini-flash-lite-latest`) e deixei ele como padrão: funciona em qualquer computador, sem GPU, só com uma chave grátis. Como a troca é uma linha no `.env`, as duas opções continuam disponíveis. Os pontos abaixo explicam a escolha do modelo local, que continua sendo o que eu recomendaria para produção por causa da LGPD.
 
 - **Gratuito e privado.** Roda na máquina, sem custo por mensagem e sem enviar dados de clientes a terceiros, o que combina com o capítulo de LGPD do manual.
 - **Família Qwen3** como padrão: tem suporte nativo a ferramentas no Ollama, bom desempenho em português e tamanhos para vários hardwares (tabela em [Qual modelo usar](#qual-modelo-usar)).
@@ -454,7 +478,7 @@ Em resumo: o assistente escreveu a maior parte do código e fez as verificaçõe
 │   ├── domain/                   # regras de negócio puras (preço, parcelas, prazos, horário)
 │   ├── etl/                      # tratamento dos CSVs e do manual + carga no banco
 │   ├── db/                       # schema.sql, pool de conexões e consultas por área
-│   ├── agent/                    # prompts, ferramentas, cliente Ollama e loop agêntico
+│   ├── agent/                    # prompts, ferramentas, clientes do modelo (Gemini/Ollama) e loop agêntico
 │   ├── api/main.py               # FastAPI: chat em streaming, histórico, chamados
 │   ├── cli.py                    # chat pelo terminal
 │   ├── clock.py                  # relógio (real ou simulado)

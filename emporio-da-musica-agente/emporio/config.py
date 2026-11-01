@@ -22,7 +22,7 @@ STORE_TIMEZONE = ZoneInfo("America/Campo_Grande")
 DEFAULT_MODELS = {
     "ollama": "qwen3:14b",
     "groq": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "gemini": "gemini-3.5-flash",
+    "gemini": "gemini-flash-lite-latest",
 }
 
 load_dotenv(PROJECT_ROOT / ".env")
