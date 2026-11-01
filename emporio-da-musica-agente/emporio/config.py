@@ -11,6 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
+from psycopg.conninfo import make_conninfo
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -57,8 +58,9 @@ class Settings:
 
     @property
     def db_conninfo(self) -> str:
-        return (f"host={self.db_host} port={self.db_port} dbname={self.db_name} "
-                f"user={self.db_user} password={self.db_password}")
+        # make_conninfo escapa valores com espaço ou aspas (ex.: senhas).
+        return make_conninfo(host=self.db_host, port=self.db_port, dbname=self.db_name,
+                             user=self.db_user, password=self.db_password)
 
 
 def parse_simulated_now(raw: str | None) -> datetime | None:
@@ -76,7 +78,8 @@ def get_settings() -> Settings:
         db_port=int(_env("DB_PORT", "5432")),
         db_user=_env("DB_USERNAME", "postgres"),
         db_password=_env("DB_PASSWORD", ""),
-        db_name=_env("DB_DATABASE", "loja_musica"),
+        # DB_NAME é aceito como alternativa (nome comum em outros projetos).
+        db_name=_env("DB_DATABASE", _env("DB_NAME", "loja_musica")),
         db_schema=_env("DB_SCHEMA", "emporio"),
         ollama_host=_env("OLLAMA_HOST", "http://localhost:11434"),
         llm_model=_env("LLM_MODEL", "qwen3:14b"),
