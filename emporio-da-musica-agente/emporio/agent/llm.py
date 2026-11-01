@@ -143,8 +143,22 @@ PROVIDER_BASE_URLS = {
 # Planos gratuitos limitam tokens por minuto (429) e às vezes ficam sobrecarregados
 # (500/503): esperamos um pouco e tentamos de novo.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-_MAX_RETRIES = 3
-_MAX_RATE_LIMIT_WAIT_S = 30
+_MAX_RETRIES = 4
+_MAX_RATE_LIMIT_WAIT_S = 60  # o limite é por minuto: esperar mais que isso não ajuda
+_RETRY_IN = re.compile(r"retry in ([\d.]+)\s*s", re.IGNORECASE)
+
+
+def _retry_delay(resp: httpx.Response, detail: str, attempt: int) -> float:
+    """Segundos até a próxima tentativa: cabeçalho Retry-After, o "retry in Xs"
+    que o Gemini escreve na mensagem, ou um recuo crescente."""
+    for candidate in (resp.headers.get("retry-after"),
+                      (m.group(1) if (m := _RETRY_IN.search(detail)) else None)):
+        try:
+            if candidate:
+                return float(candidate) + 1
+        except ValueError:
+            pass
+    return 5.0 * (attempt + 1) if resp.status_code != 429 else 15.0 * (attempt + 1)
 
 
 def _error_message(raw: bytes) -> str:
@@ -248,10 +262,7 @@ class OpenAICompatibleLLM:
                 if resp.status_code == 429:
                     raise LLMError("Limite gratuito do provedor atingido. Espere um minuto e tente de novo.")
                 raise LLMError(f"O provedor está instável no momento ({resp.status_code}). Tente de novo.")
-            try:
-                wait = float(resp.headers.get("retry-after") or 5 * (attempt + 1))
-            except ValueError:
-                wait = 5.0 * (attempt + 1)
+            wait = _retry_delay(resp, detail, attempt)
         wait = min(wait, _MAX_RATE_LIMIT_WAIT_S)
         logger.warning("Provedor indisponível ou no limite (%s); tentando de novo em %.0fs.", detail, wait)
         time.sleep(wait)

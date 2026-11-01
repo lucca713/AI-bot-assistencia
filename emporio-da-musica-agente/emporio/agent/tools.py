@@ -296,6 +296,24 @@ def buscar_produtos(ctx: ToolContext, args: BuscarProdutosInput) -> dict:
         products.append(item)
 
     result: dict = {"total_encontrado": total, "exibindo": len(products), "produtos": products}
+
+    # Cliente pediu um modelo pelo nome e só buscamos itens disponíveis: se o modelo
+    # existe mas está esgotado/descontinuado, o agente precisa saber disso para não
+    # dizer "não temos esse modelo" (manual 7.3: informar e sugerir alternativas).
+    if term and args.somente_disponiveis and (not rows or float(rows[0]["score"]) < 0.9):
+        with ctx.pool.connection() as conn:
+            unavailable = [r for r in catalog.search_products(
+                conn, term_norm=term, category_id=args.categoria_id, min_price=None, max_price=None,
+                only_available=False, order_by="relevancia", limit=3,
+            ) if float(r["score"]) >= 0.6 and not _availability(r)["disponivel_para_venda"]]
+        if unavailable:
+            result["indisponiveis_com_esse_nome"] = [_product_summary(r) for r in unavailable]
+            result["dica_indisponiveis"] = (
+                "O modelo pedido existe no catálogo, mas não está disponível para venda agora. "
+                "Diga isso ao cliente (com a situação exata) e ofereça alternativas; use "
+                "detalhes_produto para ver as sugestões de produtos semelhantes.")
+            return result
+
     if not rows:
         result["dica"] = ("Nenhum produto encontrado com esses filtros. Se fizer sentido, tente outro "
                           "termo, outra categoria ou somente_disponiveis=false. Não invente produtos.")
