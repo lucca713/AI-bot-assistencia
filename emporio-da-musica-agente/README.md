@@ -64,6 +64,19 @@ O modelo precisa ter **suporte a ferramentas (tools)**. A recomendação depende
 
 Para trocar, basta mudar `LLM_MODEL` no `.env` (e rodar `ollama pull <modelo>`).
 
+#### Alternativa sem GPU: API gratuita (Groq ou Gemini)
+
+Se a máquina não tem GPU (ou não dá para instalar o Ollama), o agente também fala com APIs na nuvem compatíveis com a API da OpenAI e com plano gratuito. Nada mais no sistema muda: ferramentas, regras e banco são os mesmos.
+
+| Provedor | Chave (grátis, sem cartão) | `.env` | Modelo padrão |
+|---|---|---|---|
+| Groq | <https://console.groq.com/keys> | `LLM_PROVIDER=groq` | `meta-llama/llama-4-scout-17b-16e-instruct` |
+| Gemini | <https://aistudio.google.com/apikey> | `LLM_PROVIDER=gemini` | `gemini-2.5-flash` |
+
+Preencha `LLM_API_KEY` com a chave e deixe `LLM_MODEL` vazio para usar o modelo padrão do provedor. Os planos gratuitos limitam tokens por minuto: quando o limite estoura, o cliente espera o tempo indicado pela API e tenta de novo.
+
+> ⚠️ Com um provedor na nuvem, as mensagens dos clientes saem da máquina. Para produção, o caminho recomendado continua sendo o modelo local (ver [Decisões técnicas](#2-modelo-e-provedor-ollama-local)).
+
 ### 3. Banco de dados (PostgreSQL)
 
 > **Não é preciso importar os CSVs manualmente.** O script do passo 3.4 lê os arquivos de `data/raw/`, trata os dados e cria tudo. Você só precisa de um PostgreSQL rodando e de um banco vazio.
@@ -125,7 +138,7 @@ Abra o `.env` e preencha com os dados do seu PostgreSQL:
 | `DB_PORT` | `5432` | porta (5432 é o padrão) |
 | `DB_USERNAME` | `postgres` | usuário do banco |
 | `DB_PASSWORD` | `sua_senha_aqui` | senha desse usuário |
-| `DB_DATABASE` | `loja_musica` | nome do banco criado no passo 3.2 |
+| `DB_DATABASE` | `loja_musica` | nome do banco criado no passo 3.2 (`DB_NAME` também é aceito) |
 | `DB_SCHEMA` | `emporio` | schema onde o projeto cria suas tabelas (não precisa mudar) |
 
 > 🔒 O `.env` está no `.gitignore` e **nunca** deve ir para o GitHub. Só o `.env.example`, sem senha real, é versionado.
@@ -266,7 +279,7 @@ O modelo recebe o catálogo de ferramentas e decide, a cada mensagem, se precisa
   - `num_ctx=16384`: o contexto padrão do Ollama é pequeno e **cortaria o começo do prompt em silêncio** (persona e regras).
   - `temperature=0.2`: atendimento pede consistência, não criatividade.
   - modo `think` configurável (`LLM_THINK`): melhora decisões, mas aumenta a latência.
-- **Trocar de provedor** exige apenas outra classe com o método `stream_chat` (ver `OllamaLLM`). O restante do sistema não depende do Ollama.
+- **Trocar de provedor** exige apenas outra classe com o método `stream_chat`. Já existem duas, escolhidas por `LLM_PROVIDER`: `OllamaLLM` e `OpenAICompatibleLLM` (Groq, Gemini ou qualquer API compatível com OpenAI). O histórico fica salvo no formato do Ollama e é convertido na hora (`to_openai_messages`: ids das chamadas de ferramenta e argumentos em JSON), então dá para trocar de provedor sem perder conversas.
 - **Adaptações para modelos locais:**
   - Schema de ferramentas "achatado": a biblioteca do Ollama descarta `anyOf`, `default` e limites, então esses campos viram texto na descrição (`to_ollama_parameters`).
   - Argumentos tolerantes: aceita JSON em string, `"null"` e números como texto.
