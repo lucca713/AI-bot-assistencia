@@ -104,7 +104,7 @@ def run_scenario(scenario: Scenario, settings, pool) -> str:
         f"# Exemplo {scenario.number}: {scenario.title}",
         "",
         f"> Gerado automaticamente por `scripts/gerar_exemplos.py` em {datetime.now():%d/%m/%Y %H:%M}, "
-        f"modelo `{agent.model}` via Ollama.",
+        f"modelo `{agent.model}` via `{settings.llm_provider}`.",
         f"> Data/hora simulada: {status}",
         "",
         f"**Cenário:** {scenario.description}",

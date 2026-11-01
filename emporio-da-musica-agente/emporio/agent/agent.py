@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 
 from psycopg_pool import ConnectionPool
 
-from emporio.agent.llm import LLMError, LLMResponse, OllamaLLM
+from emporio.agent.llm import LLMError, LLMResponse, OllamaLLM, OpenAICompatibleLLM, create_llm
 from emporio.agent.prompts import build_system_prompt, build_user_turn
 from emporio.agent.tools import ToolContext, ToolRegistry, build_registry
 from emporio.clock import Clock
@@ -52,11 +52,11 @@ class AgentReply:
 
 class StoreAgent:
     def __init__(self, settings: Settings, pool: ConnectionPool, clock: Clock,
-                 llm: OllamaLLM | None = None) -> None:
+                 llm: OllamaLLM | OpenAICompatibleLLM | None = None) -> None:
         self._settings = settings
         self._pool = pool
         self._clock = clock
-        self._llm = llm or OllamaLLM(settings)
+        self._llm = llm or create_llm(settings)
 
         # Prompt e ferramentas são montados UMA vez, a partir do banco
         # (categorias e índice do manual), e ficam fixos — ver prompts.py.
@@ -73,6 +73,10 @@ class StoreAgent:
     @property
     def model(self) -> str:
         return self._llm.model
+
+    def ping_llm(self) -> None:
+        """Levanta exceção se o provedor do modelo não estiver acessível."""
+        self._llm.ping()
 
     def reply(self, text: str, conversation_id: str | None = None, channel: str = "cli") -> AgentReply:
         """Versão sem streaming: devolve só a resposta final."""

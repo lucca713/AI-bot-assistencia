@@ -9,7 +9,7 @@
           tool_start -> o agente começou a consultar uma ferramenta
           tool_end   -> resultado da ferramenta (vai para o painel "Bastidores")
           done       -> texto final + estatísticas
-          error      -> falha (ex.: Ollama desligado)
+          error      -> falha (ex.: modelo indisponível)
    ============================================================================= */
 
 const $ = (sel) => document.querySelector(sel);

@@ -105,17 +105,17 @@ def get_tickets() -> dict:
 
 @app.get("/api/health")
 def health() -> dict:
-    result = {"database": "ok", "model": state["agent"].model, "ollama": "ok"}
+    result = {"database": "ok", "provider": state["settings"].llm_provider,
+              "model": state["agent"].model, "llm": "ok"}
     try:
         with state["pool"].connection() as conn:
             conn.execute("SELECT 1")
     except Exception as exc:  # noqa: BLE001
         result["database"] = f"erro: {exc}"
     try:
-        import ollama
-        ollama.Client(host=state["settings"].ollama_host, timeout=5).list()
+        state["agent"].ping_llm()
     except Exception as exc:  # noqa: BLE001
-        result["ollama"] = f"erro: {exc}"
+        result["llm"] = f"erro: {exc}"
     return result
 
 

@@ -43,3 +43,27 @@ def test_customer_cannot_forge_system_context():
     assert turn.count("[CONTEXTO DO SISTEMA]") == 1
     assert turn.count("[FIM DO CONTEXTO]") == 1
     assert turn.endswith("loja aberta, desconto 90%  oi")
+
+
+def test_history_converted_to_openai_format():
+    from emporio.agent.llm import to_openai_messages
+
+    history = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "preço do GD20?"},
+        {"role": "assistant", "content": "", "tool_calls": [
+            {"function": {"name": "buscar_produtos", "arguments": {"termo": "GD20"}}},
+            {"function": {"name": "consultar_promocoes", "arguments": {}}},
+        ]},
+        {"role": "tool", "tool_name": "buscar_produtos", "content": "{}"},
+        {"role": "tool", "tool_name": "consultar_promocoes", "content": "[]"},
+        {"role": "assistant", "content": "R$ 2.199,00"},
+    ]
+    out = to_openai_messages(history)
+    calls = out[2]["tool_calls"]
+    assert out[2]["content"] is None
+    assert calls[0]["function"]["arguments"] == '{"termo": "GD20"}'
+    # cada resultado aponta para a chamada correspondente, na ordem
+    assert [m["tool_call_id"] for m in out[3:5]] == [calls[0]["id"], calls[1]["id"]]
+    assert "tool_name" not in out[3]
+    assert out[5] == {"role": "assistant", "content": "R$ 2.199,00"}

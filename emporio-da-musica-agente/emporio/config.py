@@ -18,6 +18,13 @@ DATA_DIR = PROJECT_ROOT / "data"
 WEB_DIR = PROJECT_ROOT / "web"
 STORE_TIMEZONE = ZoneInfo("America/Campo_Grande")
 
+# Modelo usado quando LLM_MODEL fica vazio, por provedor (LLM_PROVIDER).
+DEFAULT_MODELS = {
+    "ollama": "qwen3:14b",
+    "groq": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "gemini": "gemini-2.5-flash",
+}
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 
@@ -40,7 +47,10 @@ class Settings:
     db_name: str
     db_schema: str
 
-    # LLM (Ollama)
+    # LLM: "ollama" (local) ou um provedor compatível com OpenAI ("groq", "gemini"...)
+    llm_provider: str
+    llm_api_key: str          # só para provedores na nuvem
+    llm_base_url: str         # vazio = endereço padrão do provedor
     ollama_host: str
     llm_model: str
     llm_temperature: float
@@ -73,6 +83,7 @@ def parse_simulated_now(raw: str | None) -> datetime | None:
 
 @lru_cache
 def get_settings() -> Settings:
+    provider = _env("LLM_PROVIDER", "ollama").strip().lower()
     return Settings(
         db_host=_env("DB_HOST", "localhost"),
         db_port=int(_env("DB_PORT", "5432")),
@@ -81,8 +92,11 @@ def get_settings() -> Settings:
         # DB_NAME é aceito como alternativa (nome comum em outros projetos).
         db_name=_env("DB_DATABASE", _env("DB_NAME", "loja_musica")),
         db_schema=_env("DB_SCHEMA", "emporio"),
+        llm_provider=provider,
+        llm_api_key=_env("LLM_API_KEY", ""),
+        llm_base_url=_env("LLM_BASE_URL", ""),
         ollama_host=_env("OLLAMA_HOST", "http://localhost:11434"),
-        llm_model=_env("LLM_MODEL", "qwen3:14b"),
+        llm_model=_env("LLM_MODEL", DEFAULT_MODELS.get(provider, "")),
         llm_temperature=float(_env("LLM_TEMPERATURE", "0.2")),
         llm_num_ctx=int(_env("LLM_NUM_CTX", "16384")),
         llm_think=_env_bool("LLM_THINK", False),
